@@ -121,7 +121,7 @@ export default function ProfilePage() {
         .update({
           fullname,
           nickname,
-          updated_at: new Date().toISOString()
+          //updated_at: new Date().toISOString()
         })
         .eq("id", userId)
 
