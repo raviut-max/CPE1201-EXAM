@@ -85,10 +85,12 @@ export default function ProfilePage() {
 
       if (uploadError) throw uploadError
 
-      // รับ URL ของไฟล์
-      const {  publicUrl } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
+      // ✅ แก้ไขตรงนี้: getPublicUrl คืนค่า {  { publicUrl } }
+      const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
+      
+      const publicUrl = publicUrlResult.data?.publicUrl
+
+      if (!publicUrl) throw new Error("Failed to get public URL")
 
       // อัปเดต avatar_url ในฐานข้อมูล
       const { error: updateError } = await supabase
