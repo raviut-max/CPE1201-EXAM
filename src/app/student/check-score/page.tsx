@@ -21,7 +21,7 @@ export default function CheckScorePage() {
     setStudentInfo(null)
 
     try {
-      // 1. ค้นหา User จาก Student ID (แก้ Destructuring)
+      // 1. ค้นหา User จาก Student ID
       const profileResult = await supabase
         .from("profiles")
         .select("id, fullname, nickname")
@@ -100,7 +100,8 @@ export default function CheckScorePage() {
         const score = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0
 
         calculatedResults.push({
-          sessionName: record.exam_sessions?.session_name || "การสอบ",
+          // ✅ แก้ไขตรงนี้: exam_sessions เป็น Array ต้องเข้าถึง [0] ก่อน
+          sessionName: record.exam_sessions?.[0]?.session_name || "การสอบ",
           date: new Date(record.end_time).toLocaleString("th-TH"),
           score: score.toFixed(1),
           correct: correctCount,
