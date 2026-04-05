@@ -58,7 +58,6 @@ export default function ProfilePage() {
     try {
       setUploading(true)
       const file = e.target.files?.[0]
-      
       if (!file || !userId) return
 
       // ตรวจสอบขนาดไฟล์ (ไม่เกิน 2MB)
@@ -85,9 +84,8 @@ export default function ProfilePage() {
 
       if (uploadError) throw uploadError
 
-      // ✅ แก้ไขตรงนี้: getPublicUrl คืนค่า {  { publicUrl } }
+      // ✅ แก้ไข: getPublicUrl คืนค่า { data: { publicUrl } }
       const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
-      
       const publicUrl = publicUrlResult.data?.publicUrl
 
       if (!publicUrl) throw new Error("Failed to get public URL")
@@ -113,7 +111,6 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userId) return
-
     setSaving(true)
     try {
       const { error } = await supabase
@@ -121,7 +118,6 @@ export default function ProfilePage() {
         .update({
           fullname,
           nickname,
-          //updated_at: new Date().toISOString()
         })
         .eq("id", userId)
 
@@ -145,128 +141,126 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-200 via-teal-100 to-cyan-200 p-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-            📝 แก้ไขโปรไฟล์
-          </h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-200 via-teal-100 to-cyan-200 py-8 px-4">
+      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+        <h1 className="text-3xl font-bold text-center text-teal-600 mb-8">
+          📝 แก้ไขโปรไฟล์
+        </h1>
 
-          <form onSubmit={handleSave} className="space-y-6">
-            {/* รูปโปรไฟล์ */}
-            <div className="flex flex-col items-center">
-              <div className="relative mb-4">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="Profile"
-                    className="w-32 h-32 rounded-full object-cover border-4 border-teal-500 shadow-lg"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold border-4 border-teal-500 shadow-lg">
-                    {fullname.charAt(0) || "?"}
-                  </div>
-                )}
-                
-                {uploading && (
-                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                  </div>
-                )}
-              </div>
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* รูปโปรไฟล์ */}
+          <div className="flex flex-col items-center">
+            <div className="relative mb-4">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-teal-500 shadow-lg"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold border-4 border-teal-500 shadow-lg">
+                  {fullname.charAt(0) || "?"}
+                </div>
+              )}
 
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50"
-              >
-                {uploading ? "กำลังอัปโหลด..." : "📷 เปลี่ยนรูปโปรไฟล์"}
-              </button>
-              <p className="text-xs text-gray-500 mt-2">ขนาดไฟล์ไม่เกิน 2MB</p>
+              {uploading && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                </div>
+              )}
             </div>
 
-            {/* ข้อมูลที่ไม่สามารถแก้ไขได้ */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                รหัสนักศึกษา
-              </label>
-              <input
-                type="text"
-                value={studentId}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-              />
-            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                อีเมล
-              </label>
-              <input
-                type="email"
-                value={email}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50"
+            >
+              {uploading ? "กำลังอัปโหลด..." : "📷 เปลี่ยนรูปโปรไฟล์"}
+            </button>
+            <p className="text-xs text-gray-500 mt-2">ขนาดไฟล์ไม่เกิน 2MB</p>
+          </div>
 
-            {/* ข้อมูลที่แก้ไขได้ */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ชื่อ-นามสกุล <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={fullname}
-                onChange={(e) => setFullname(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-                placeholder="กรอกชื่อ-นามสกุล"
-              />
-            </div>
+          {/* ข้อมูลที่ไม่สามารถแก้ไขได้ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              รหัสนักศึกษา
+            </label>
+            <input
+              type="text"
+              value={studentId}
+              disabled
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ชื่อเล่น
-              </label>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-                placeholder="กรอกชื่อเล่น (ถ้ามี)"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              อีเมล
+            </label>
+            <input
+              type="email"
+              value={email}
+              disabled
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+            />
+          </div>
 
-            {/* ปุ่มบันทึก */}
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold py-3 rounded-lg hover:from-teal-600 hover:to-cyan-700 shadow-lg transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? "กำลังบันทึก..." : "💾 บันทึกการเปลี่ยนแปลง"}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => router.push("/student/lobby")}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
-              >
-                ยกเลิก
-              </button>
-            </div>
-          </form>
-        </div>
+          {/* ข้อมูลที่แก้ไขได้ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ชื่อ-นามสกุล <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={fullname}
+              onChange={(e) => setFullname(e.target.value)}
+              required
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
+              placeholder="กรอกชื่อ-นามสกุล"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ชื่อเล่น
+            </label>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
+              placeholder="กรอกชื่อเล่น (ถ้ามี)"
+            />
+          </div>
+
+          {/* ปุ่มบันทึก */}
+          <div className="flex gap-4 pt-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold py-3 rounded-lg hover:from-teal-600 hover:to-cyan-700 shadow-lg transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "กำลังบันทึก..." : "💾 บันทึกการเปลี่ยนแปลง"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/student/lobby")}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
