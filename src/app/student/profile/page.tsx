@@ -46,6 +46,7 @@ export default function ProfilePage() {
         setNickname(profileResult.data.nickname || "")
         setStudentId(profileResult.data.student_id || "")
         setAvatarUrl(profileResult.data.avatar_url)
+        console.log("✅ Avatar URL from DB:", profileResult.data.avatar_url)
       }
     } catch (error) {
       console.error("Error fetching profile:", error)
@@ -77,16 +78,25 @@ export default function ProfilePage() {
       const fileName = `${userId}-${Date.now()}.${fileExt}`
       const filePath = `${fileName}`
 
+      console.log("📤 Uploading file:", filePath)
+
       // อัปโหลดไฟล์ขึ้น Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file)
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        console.error("Upload error:", uploadError)
+        throw uploadError
+      }
+
+      console.log("✅ Upload successful")
 
       // ✅ แก้ไข: getPublicUrl คืนค่า { data: { publicUrl } }
       const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
       const publicUrl = publicUrlResult.data?.publicUrl
+
+      console.log("🔗 Public URL:", publicUrl)
 
       if (!publicUrl) throw new Error("Failed to get public URL")
 
@@ -96,9 +106,19 @@ export default function ProfilePage() {
         .update({ avatar_url: publicUrl })
         .eq("id", userId)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error("Update error:", updateError)
+        throw updateError
+      }
 
+      console.log("✅ Database updated")
+
+      // ✅ สำคัญ: อัปเดต state ทันทีเพื่อให้รูปแสดง
       setAvatarUrl(publicUrl)
+      
+      // ✅ Force refresh เพื่อดึงข้อมูลล่าสุด
+      await fetchProfile()
+
       alert("อัปโหลดรูปโปรไฟล์สำเร็จ!")
     } catch (error) {
       console.error("Error uploading image:", error)
@@ -156,6 +176,10 @@ export default function ProfilePage() {
                   src={avatarUrl}
                   alt="Profile"
                   className="w-32 h-32 rounded-full object-cover border-4 border-teal-500 shadow-lg"
+                  onError={(e) => {
+                    console.error("❌ Image failed to load:", avatarUrl)
+                    e.currentTarget.src = "" // Clear broken image
+                  }}
                 />
               ) : (
                 <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold border-4 border-teal-500 shadow-lg">
