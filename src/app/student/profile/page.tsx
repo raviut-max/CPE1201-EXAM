@@ -16,23 +16,15 @@ export default function ProfilePage() {
   const [studentId, setStudentId] = useState("")
   const [email, setEmail] = useState("")
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [avatarPublicUrl, setAvatarPublicUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchProfile()
   }, [])
 
-  // 获取头像的公开URL
-  const getPublicUrl = (path: string) => {
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    return data.publicUrl
-  }
-
   const fetchProfile = async () => {
     try {
-      const result = await supabase.auth.getUser()
-      const user = result.data?.user
+      const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
         router.push("/student/login")
@@ -42,23 +34,23 @@ export default function ProfilePage() {
       setUserId(user.id)
       setEmail(user.email || "")
 
-      const profileResult = await supabase
+      const { data: profile } = await supabase
         .from("profiles")
         .select("fullname, nickname, student_id, avatar_url")
         .eq("id", user.id)
         .single()
 
-      if (profileResult.data) {
-        setFullname(profileResult.data.fullname || "")
-        setNickname(profileResult.data.nickname || "")
-        setStudentId(profileResult.data.student_id || "")
+      if (profile) {
+        setFullname(profile.fullname || "")
+        setNickname(profile.nickname || "")
+        setStudentId(profile.student_id || "")
         
-        const avatarPath = profileResult.data.avatar_url
-        setAvatarUrl(avatarPath)
-        
-        // 如果有头像路径，获取公开URL
-        if (avatarPath) {
-          setAvatarPublicUrl(getPublicUrl(avatarPath))
+        // สร้าง Public URL จาก avatar_path
+        if (profile.avatar_url) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(profile.avatar_url)
+          setAvatarUrl(urlData?.publicUrl || null)
         }
       }
     } catch (error) {
@@ -74,42 +66,58 @@ export default function ProfilePage() {
       const file = e.target.files?.[0]
       if (!file || !userId) return
 
+      // ตรวจสอบขนาดไฟล์ (ไม่เกิน 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 2MB")
         return
       }
 
-      if (!file.type.startsWith('image/')) {
+      // ตรวจสอบประเภทไฟล์
+      if (!file.type.startsWith("image/")) {
         alert("กรุณาอัปโหลดไฟล์รูปภาพเท่านั้น")
         return
       }
 
-      // 先删除旧头像（如果有）
+      // ลบไฟล์เก่าออก (ถ้ามี)
       if (avatarUrl) {
-        await supabase.storage.from('avatars').remove([avatarUrl])
+        const oldFileName = avatarUrl.split("/").pop()
+        if (oldFileName) {
+          await supabase.storage.from("avatars").remove([oldFileName])
+        }
       }
 
-      const fileExt = file.name.split('.').pop()
+      // สร้างชื่อไฟล์ใหม่
+      const fileExt = file.name.split(".").pop()
       const fileName = `${userId}-${Date.now()}.${fileExt}`
-      const filePath = fileName
 
+      // อัปโหลดไฟล์
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file)
+        .from("avatars")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: true
+        })
 
       if (uploadError) throw uploadError
 
+      // สร้าง Public URL
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName)
+
+      const publicUrl = urlData?.publicUrl
+
+      if (!publicUrl) throw new Error("Failed to get public URL")
+
+      // บันทึก path ลงฐานข้อมูล
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ avatar_url: filePath })
+        .update({ avatar_url: fileName })
         .eq("id", userId)
 
       if (updateError) throw updateError
 
-      // 更新公开URL
-      setAvatarUrl(filePath)
-      setAvatarPublicUrl(getPublicUrl(filePath))
-      
+      setAvatarUrl(publicUrl)
       alert("อัปโหลดรูปโปรไฟล์สำเร็จ!")
     } catch (error) {
       console.error("Error uploading image:", error)
@@ -122,6 +130,7 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userId) return
+    
     setSaving(true)
     try {
       const { error } = await supabase
@@ -159,24 +168,17 @@ export default function ProfilePage() {
         </h1>
 
         <form onSubmit={handleSave} className="space-y-6">
+          {/* รูปโปรไฟล์ */}
           <div className="flex flex-col items-center">
             <div className="relative mb-4">
-              {avatarPublicUrl ? (
+              {avatarUrl ? (
                 <img
-                  src={avatarPublicUrl}
+                  src={avatarUrl}
                   alt="Profile"
                   className="w-32 h-32 rounded-full object-cover border-4 border-teal-500 shadow-lg"
                   onError={(e) => {
-                    // 如果图片加载失败，显示默认头像
-                    e.currentTarget.style.display = 'none'
-                    const parent = e.currentTarget.parentElement
-                    if (parent) {
-                      const defaultDiv = document.createElement('div')
-                      defaultDiv.className = "w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold border-4 border-teal-500 shadow-lg"
-                      defaultDiv.textContent = fullname.charAt(0) || "?"
-                      parent.appendChild(defaultDiv)
-                      e.currentTarget.remove()
-                    }
+                    console.error("Failed to load image")
+                    e.currentTarget.src = ""
                   }}
                 />
               ) : (
@@ -184,7 +186,7 @@ export default function ProfilePage() {
                   {fullname.charAt(0) || "?"}
                 </div>
               )}
-              
+
               {uploading && (
                 <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
@@ -211,6 +213,7 @@ export default function ProfilePage() {
             <p className="text-xs text-gray-500 mt-2">ขนาดไฟล์ไม่เกิน 2MB</p>
           </div>
 
+          {/* ข้อมูลที่ไม่สามารถแก้ไขได้ */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               รหัสนักศึกษา
@@ -235,6 +238,7 @@ export default function ProfilePage() {
             />
           </div>
 
+          {/* ข้อมูลที่แก้ไขได้ */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               ชื่อ-นามสกุล <span className="text-red-500">*</span>
@@ -262,6 +266,7 @@ export default function ProfilePage() {
             />
           </div>
 
+          {/* ปุ่มบันทึก */}
           <div className="flex gap-4 pt-4">
             <button
               type="submit"
