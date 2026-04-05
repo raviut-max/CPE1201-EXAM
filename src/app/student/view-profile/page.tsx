@@ -1,22 +1,23 @@
-// src/app/student/profile/page.tsx
+// src/app/student/view-profile/page.tsx
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
-export default function ProfilePage() {
+export default function ViewProfilePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
   const [fullname, setFullname] = useState("")
   const [nickname, setNickname] = useState("")
   const [studentId, setStudentId] = useState("")
   const [email, setEmail] = useState("")
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // State สำหรับ debug รูปภาพ
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProfile()
@@ -24,15 +25,18 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     try {
+      console.log("🔍 [DEBUG] Fetching profile...")
+      
       const result = await supabase.auth.getUser()
       const user = result.data?.user
 
       if (!user) {
+        console.log("⚠️ [DEBUG] No user found, redirecting to login")
         router.push("/student/login")
         return
       }
 
-      setUserId(user.id)
+      console.log("✅ [DEBUG] User found:", user.id)
       setEmail(user.email || "")
 
       const profileResult = await supabase
@@ -41,96 +45,59 @@ export default function ProfilePage() {
         .eq("id", user.id)
         .single()
 
+      console.log("📋 [DEBUG] Profile result:", profileResult)
+
       if (profileResult.data) {
         setFullname(profileResult.data.fullname || "")
         setNickname(profileResult.data.nickname || "")
         setStudentId(profileResult.data.student_id || "")
-        setAvatarUrl(profileResult.data.avatar_url)
+        
+        const rawAvatarUrl = profileResult.data.avatar_url
+        setAvatarUrl(rawAvatarUrl)
+        
+        console.log("🖼️ [DEBUG] Raw Avatar URL:", rawAvatarUrl)
+        
+        // ✅ ทดสอบ URL โดยตรง
+        if (rawAvatarUrl) {
+          fetch(rawAvatarUrl)
+            .then(response => {
+              console.log("🔍 [DEBUG] URL Test Response:", response.status, response.statusText)
+              if (!response.ok) {
+                setImageError(`URL ไม่สามารถเข้าถึงได้ (Status: ${response.status})`)
+              }
+            })
+            .catch(err => {
+              console.error("❌ [DEBUG] URL Test Failed:", err)
+              setImageError("ไม่สามารถเชื่อมต่อ URL ได้")
+            })
+        }
       }
     } catch (error) {
-      console.error("Error fetching profile:", error)
+      console.error("❌ [DEBUG] Error fetching profile:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      setUploading(true)
-      const file = e.target.files?.[0]
-      if (!file || !userId) return
-
-      if (file.size > 2 * 1024 * 1024) {
-        alert("ไฟล์รูปภาพต้องมีขนาดไม่เกิน 2MB")
-        return
-      }
-
-      if (!file.type.startsWith('image/')) {
-        alert("กรุณาอัปโหลดไฟล์รูปภาพเท่านั้น")
-        return
-      }
-
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${userId}-${Date.now()}.${fileExt}`
-      const filePath = `${fileName}`
-
-      console.log("Uploading file:", filePath)
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file)
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError)
-        throw uploadError
-      }
-
-      const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
-      const publicUrl = publicUrlResult.data?.publicUrl
-
-      console.log("Public URL:", publicUrl)
-
-      if (!publicUrl) throw new Error("Failed to get public URL")
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", userId)
-
-      if (updateError) throw updateError
-
-      setAvatarUrl(publicUrl)
-      alert("อัปโหลดรูปโปรไฟล์สำเร็จ!")
-    } catch (error) {
-      console.error("Error uploading image:", error)
-      alert("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ")
-    } finally {
-      setUploading(false)
-    }
+  // ฟังก์ชันจัดการเมื่อโหลดรูปสำเร็จ
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    console.log("✅ [DEBUG] Image loaded successfully!")
+    console.log("📏 [DEBUG] Image dimensions:", img.naturalWidth, "x", img.naturalHeight)
+    setImageDimensions({
+      width: img.naturalWidth,
+      height: img.naturalHeight
+    })
+    setImageLoaded(true)
+    setImageError(null)
   }
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!userId) return
-    setSaving(true)
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          fullname,
-          nickname,
-        })
-        .eq("id", userId)
-
-      if (error) throw error
-
-      alert("บันทึกข้อมูลสำเร็จ!")
-    } catch (error) {
-      console.error("Error saving profile:", error)
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล")
-    } finally {
-      setSaving(false)
-    }
+  // ฟังก์ชันจัดการเมื่อโหลดรูปผิดพลาด
+  const handleImageError = () => {
+    console.error("❌ [DEBUG] Failed to load image!")
+    console.error("❌ [DEBUG] Image URL:", avatarUrl)
+    setImageError("ไม่สามารถโหลดรูปภาพได้")
+    setImageLoaded(false)
   }
 
   if (loading) {
@@ -145,119 +112,130 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-200 via-teal-100 to-cyan-200 py-8 px-4">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
         <h1 className="text-3xl font-bold text-center text-teal-600 mb-8">
-          📝 แก้ไขโปรไฟล์
+          👤 ข้อมูลโปรไฟล์
         </h1>
 
-        <form onSubmit={handleSave} className="space-y-6">
-          <div className="flex flex-col items-center">
-            <div className="relative mb-4">
-              {avatarUrl ? (
+        {/* รูปโปรไฟล์ - สี่เหลี่ยม */}
+        <div className="flex justify-center mb-8">
+          <div className="relative">
+            {avatarUrl ? (
+              <div className="relative">
                 <img
                   src={avatarUrl}
                   alt="Profile"
-                  className="w-32 h-32 rounded-full object-cover border-4 border-teal-500 shadow-lg"
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                  className="w-40 h-40 object-cover border-4 border-teal-500 shadow-xl rounded-lg"
+                  crossOrigin="anonymous"
                 />
-              ) : (
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold border-4 border-teal-500 shadow-lg">
-                  {fullname.charAt(0) || "?"}
-                </div>
-              )}
-              
-              {uploading && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                </div>
-              )}
-            </div>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors disabled:opacity-50"
-            >
-              {uploading ? "กำลังอัปโหลด..." : "📷 เปลี่ยนรูปโปรไฟล์"}
-            </button>
-            <p className="text-xs text-gray-500 mt-2">ขนาดไฟล์ไม่เกิน 2MB</p>
+                {/* แสดงสถานะโหลดรูป */}
+                {imageLoaded && (
+                  <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-green-100 text-green-700 text-xs px-2 py-1 rounded whitespace-nowrap">
+                    ✅ โหลดสำเร็จ
+                  </div>
+                )}
+                {imageError && (
+                  <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-700 text-xs px-2 py-1 rounded whitespace-nowrap">
+                    ❌ โหลดล้มเหลว
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-40 h-40 rounded-lg bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-white text-6xl font-bold border-4 border-teal-500 shadow-xl">
+                {fullname.charAt(0).toUpperCase() || "?"}
+              </div>
+            )}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+        {/* รายละเอียดรูปภาพ (Debug) */}
+        {avatarUrl && (
+          <div className="bg-gray-50 rounded-xl p-4 mb-6 text-center">
+            <p className="text-sm font-medium text-gray-600 mb-2">📊 รายละเอียดรูปภาพ</p>
+            <div className="text-sm text-gray-700 break-all mb-2">
+              URL: <span className="text-teal-600">{avatarUrl}</span>
+            </div>
+            {imageDimensions && (
+              <div className="text-sm text-gray-700">
+                📏 ขนาด: <span className="font-semibold text-teal-600">{imageDimensions.width} x {imageDimensions.height} px</span>
+              </div>
+            )}
+            {imageError && (
+              <div className="mt-2 text-sm text-red-600 font-semibold">
+                ⚠️ {imageError}
+              </div>
+            )}
+            {/* ปุ่มทดสอบเปิดรูป */}
+            <a 
+              href={avatarUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block mt-3 px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+            >
+              🔗 เปิด URL ในแท็บใหม่
+            </a>
+          </div>
+        )}
+
+        {/* ข้อมูลส่วนตัว */}
+        <div className="space-y-6">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
               รหัสนักศึกษา
             </label>
-            <input
-              type="text"
-              value={studentId}
-              disabled
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-            />
+            <p className="text-lg font-semibold text-gray-800">{studentId}</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
               อีเมล
             </label>
-            <input
-              type="email"
-              value={email}
-              disabled
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-            />
+            <p className="text-lg font-semibold text-gray-800">{email}</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ชื่อ-นามสกุล <span className="text-red-500">*</span>
+          <div className="bg-gray-50 rounded-xl p-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              ชื่อ-นามสกุล
             </label>
-            <input
-              type="text"
-              value={fullname}
-              onChange={(e) => setFullname(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-              placeholder="กรอกชื่อ-นามสกุล"
-            />
+            <p className="text-lg font-semibold text-gray-800">{fullname}</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <label className="block text-sm font-medium text-gray-600 mb-1">
               ชื่อเล่น
             </label>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-              placeholder="กรอกชื่อเล่น (ถ้ามี)"
-            />
+            <p className="text-lg font-semibold text-gray-800">
+              {nickname || "-"}
+            </p>
           </div>
+        </div>
 
-          <div className="flex gap-4 pt-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold py-3 rounded-lg hover:from-teal-600 hover:to-cyan-700 shadow-lg transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? "กำลังบันทึก..." : "💾 บันทึกการเปลี่ยนแปลง"}
-            </button>
+        {/* ปุ่มนำทาง */}
+        <div className="flex gap-4 mt-8">
+          <button
+            onClick={() => router.push("/student/profile")}
+            className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold py-3 rounded-lg hover:from-teal-600 hover:to-cyan-700 shadow-lg transform hover:scale-[1.02] transition-all"
+          >
+            ✏️ แก้ไขโปรไฟล์
+          </button>
           
-            <button
-              type="button"
-              onClick={() => router.push("/student/lobby")}
-              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
-            >
-              ยกเลิก
-            </button>
-          </div>
-        </form>
+          <button
+            onClick={() => router.push("/student/lobby")}
+            className="flex-1 bg-gray-200 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-300 transition-all"
+          >
+            🏠 กลับหน้าหลัก
+          </button>
+        </div>
+
+        {/* Debug Panel */}
+        <div className="mt-8 bg-gray-900 text-green-400 rounded-xl p-4 text-xs font-mono">
+          <p className="font-bold mb-2">🔧 Debug Information:</p>
+          <p>User ID: {studentId}</p>
+          <p>Avatar URL: {avatarUrl || "null"}</p>
+          <p>Image Loaded: {imageLoaded ? "Yes" : "No"}</p>
+          <p>Image Error: {imageError || "None"}</p>
+          <p>Dimensions: {imageDimensions ? `${imageDimensions.width} x ${imageDimensions.height}` : "N/A"}</p>
+        </div>
       </div>
     </div>
   )
