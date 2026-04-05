@@ -2,6 +2,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
 export default function RegisterPage() {
@@ -13,81 +14,53 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [message, setMessage] = useState({ type: "", text: "" })
+  const router = useRouter()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("🔴 [DEBUG] เริ่มกระบวนการลงทะเบียน")
-    console.log("🔵 [DEBUG] ข้อมูลที่กรอก:", { studentId, fullname, email, passwordLength: password.length })
-    
     setMessage({ type: "", text: "" })
-    
-    // ตรวจสอบรหัสผ่าน
+
     if (password !== confirmPassword) {
-      console.log(" [DEBUG] รหัสผ่านไม่ตรงกัน")
       setMessage({ type: "error", text: "รหัสผ่านไม่ตรงกัน" })
       return
     }
-    
+
     if (password.length < 6) {
-      console.log("🟡 [DEBUG] รหัสผ่านสั้นเกินไป")
       setMessage({ type: "error", text: "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร" })
       return
     }
 
     setLoading(true)
-    console.log("🟢 [DEBUG] กำลังสมัครสมาชิกใน Supabase Auth...")
 
-    try {
-      // 1. สมัครสมาชิกใน Supabase Auth
-      const { error: authError, data } = await supabase.auth.signUp({ 
-        email, 
-        password,
+    const { error: authError, data } = await supabase.auth.signUp({ 
+      email, 
+      password,
+    })
+
+    if (authError) {
+      setMessage({ type: "error", text: "เกิดข้อผิดพลาด: " + authError.message })
+      setLoading(false)
+      return
+    }
+
+    if (data.user) {
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        student_id: studentId,
+        fullname,
+        email,
+        role: "student"
       })
 
-      console.log("🟣 [DEBUG] ผลลัพธ์จาก Auth:", { authError, userId: data?.user?.id })
-
-      if (authError) {
-        console.log("🔴 [DEBUG] Auth Error:", authError.message)
-        setMessage({ type: "error", text: "เกิดข้อผิดพลาด: " + authError.message })
+      if (profileError) {
+        setMessage({ type: "error", text: "บันทึกข้อมูลไม่สำเร็จ: " + profileError.message })
         setLoading(false)
-        return
+      } else {
+        setMessage({ type: "success", text: "ลงทะเบียนสำเร็จ! กำลังไปยังหน้าเข้าสู่ระบบ..." })
+        setTimeout(() => {
+          router.push("/student/login")
+        }, 800)
       }
-
-      if (data.user) {
-        console.log("🟢 [DEBUG] สร้าง User สำเร็จ! User ID:", data.user.id)
-        console.log("🟢 [DEBUG] กำลังบันทึกข้อมูลลงในตาราง profiles...")
-        
-        // 2. บันทึกรหัสนักศึกษา + ชื่อ + Email ลงตาราง profiles
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          student_id: studentId,
-          fullname,
-          email,
-          role: "student"
-        })
-
-        console.log("🟣 [DEBUG] ผลลัพธ์จาก Profiles:", { profileError })
-
-        if (profileError) {
-          console.log("🔴 [DEBUG] Profile Error:", profileError.message)
-          setMessage({ type: "error", text: "บันทึกข้อมูลไม่สำเร็จ: " + profileError.message })
-          setLoading(false)
-        } else {
-          console.log("✅ [DEBUG] บันทึกข้อมูลสำเร็จทั้งหมด!")
-          setMessage({ type: "success", text: "ลงทะเบียนสำเร็จ! กำลังไปยังหน้าเข้าสู่ระบบ..." })
-          
-          // ใช้ setTimeout เพื่อให้ UI แสดงข้อความก่อน
-          setTimeout(() => {
-            console.log("🚀 [DEBUG] กำลังเปลี่ยนหน้าไปยัง /student/login")
-            // ใช้ window.location.href เพื่อบังคับเปลี่ยนหน้า
-            window.location.href = "/student/login"
-          }, 1500)
-        }
-      }
-    } catch (error) {
-      console.log("🔴 [DEBUG] เกิด Error ที่ไม่คาดคิด:", error)
-      setMessage({ type: "error", text: "เกิดข้อผิดพลาดที่ไม่คาดคิด: " + error })
-      setLoading(false)
     }
   }
 
