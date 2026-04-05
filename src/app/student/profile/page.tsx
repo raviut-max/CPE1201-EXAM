@@ -80,8 +80,8 @@ export default function ProfilePage() {
 
       if (uploadError) throw uploadError
 
-      const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
-      const publicUrl = publicUrlResult.data?.publicUrl
+      //const publicUrlResult = supabase.storage.from('avatars').getPublicUrl(filePath)
+      //const publicUrl = publicUrlResult.data?.publicUrl
 
       if (!publicUrl) throw new Error("Failed to get public URL")
 
